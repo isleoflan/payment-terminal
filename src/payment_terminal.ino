@@ -1,17 +1,33 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <WebUSB.h>
+#include <LiquidCrystal.h>
 
+// definitions for RFID
 #define SS_PIN 10
 #define RST_PIN 9
 
+// definitions for piezzo
 #define PIEZZO_PIN 6
+
+// USB Serial Definition
 #define USBSerial WebUSBSerial
+
+// LCD definitions
+#define RS A1
+#define EN A0
+// data pin definitions
+#define d4 5
+#define d5 4
+#define d6 3
+#define d7 2
+
 
 WebUSB WebUSBSerial(1 /* https:// */, "clerk.isleoflan.ch");
 MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
-
 MFRC522::MIFARE_Key key; 
+
+LiquidCrystal lcd(RS, EN, d4, d5, d6, d7);
 
 bool startRead = false;
 
@@ -19,11 +35,13 @@ bool startRead = false;
 byte nuidPICC[4];
 
 void setup() { 
-  while (!Serial) {
+  // set up lcd
+  lcd.begin(16, 2);
+
+  while (!WebUSBSerial) {
     ;
   }
   USBSerial.begin(9600);
-  Serial.begin(9600);
   SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522 
 
@@ -31,29 +49,26 @@ void setup() {
     key.keyByte[i] = 0xFF;
   }
 
-  USBSerial.println(F("This code scan the MIFARE Classsic NUID."));
-  USBSerial.print(F("Using the following key:"));
   printHex(key.keyByte, MFRC522::MF_KEY_SIZE);
   USBSerial.flush();
 }
  
 void loop() {
-  if (Serial && USBSerial.available()) {
+  if (USBSerial && USBSerial.available()) {
     int byte = USBSerial.read();
-    USBSerial.write(byte);
-    Serial.write(byte);
     tone(PIEZZO_PIN, 523 , 250);
     if (byte == 'H') {
-      USBSerial.write("Place your Card");
+      // USBSerial.print(F("Place Your Card"));
+      lcd.setCursor(0,0);
+      lcd.print("Place your Card");
       startRead = true;
     }
-    USBSerial.write("\r\n> ");
     USBSerial.flush();
   }
 
-  if(startRead){
+  // if(startRead){
     readCard();
-  }
+  // }
 }
 
 void readCard() {
@@ -65,9 +80,7 @@ void readCard() {
     if ( ! rfid.PICC_ReadCardSerial())
       return;
   
-    USBSerial.print(F("PICC type: "));
     MFRC522::PICC_Type piccType = rfid.PICC_GetType(rfid.uid.sak);
-    USBSerial.println(rfid.PICC_GetTypeName(piccType));
   
     // Check is the PICC of Classic MIFARE type
     if (piccType != MFRC522::PICC_TYPE_MIFARE_MINI &&  
@@ -81,7 +94,6 @@ void readCard() {
       rfid.uid.uidByte[1] != nuidPICC[1] || 
       rfid.uid.uidByte[2] != nuidPICC[2] || 
       rfid.uid.uidByte[3] != nuidPICC[3] ) {
-      USBSerial.println(F("A new card has been detected."));
   
       tone(PIEZZO_PIN, 523 , 250);
   
@@ -89,16 +101,18 @@ void readCard() {
       for (byte i = 0; i < 4; i++) {
         nuidPICC[i] = rfid.uid.uidByte[i];
       }
-     
-      USBSerial.println(F("The NUID tag is:"));
-      USBSerial.print(F("In hex: "));
-      printHex(rfid.uid.uidByte, rfid.uid.size);
-      USBSerial.println();
-      USBSerial.print(F("In dec: "));
-      printDec(rfid.uid.uidByte, rfid.uid.size);
-      USBSerial.println();
+      
+      lcd.clear();
+      lcd.setCursor(0,0);
+      for(byte i = 0; i < rfid.uid.size; i++){
+        lcd.setCursor(i,0);
+        lcd.print(rfid.uid.uidByte[i], HEX);
+      }
+      // printHex(rfid.uid.uidByte, rfid.uid.size);
+      USBSerial.println(F("READ"));
     } else{
       USBSerial.println(F("Card read previously."));
+      
       tone(PIEZZO_PIN, 261 , 500);
     }
   
@@ -110,6 +124,8 @@ void readCard() {
 
     // be ready for next Card
     startRead = false;
+
+    USBSerial.flush();
 }
 
 
