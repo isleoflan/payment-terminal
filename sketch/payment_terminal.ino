@@ -22,17 +22,19 @@
 #define d6 3
 #define d7 2
 
-
 WebUSB WebUSBSerial(1 /* https:// */, "clerk.isleoflan.ch");
 MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
 MFRC522::MIFARE_Key key; 
 
 LiquidCrystal lcd(RS, EN, d4, d5, d6, d7);
 
-bool startRead = false;
+char line1[16];
+char line2[16];
 
-// Init array that will store new NUID 
-byte nuidPICC[4];
+int lineIndex = 0;
+
+bool newReadStarted = false;
+
 
 void setup() { 
   // set up lcd
@@ -42,33 +44,40 @@ void setup() {
     ;
   }
   USBSerial.begin(9600);
+  
   SPI.begin(); // Init SPI bus
   rfid.PCD_Init(); // Init MFRC522 
-
-  for (byte i = 0; i < 6; i++) {
-    key.keyByte[i] = 0xFF;
-  }
-
-  printHex(key.keyByte, MFRC522::MF_KEY_SIZE);
-  USBSerial.flush();
 }
  
 void loop() {
-  if (USBSerial && USBSerial.available()) {
-    int byte = USBSerial.read();
-    tone(PIEZZO_PIN, 523 , 250);
-    if (byte == 'H') {
-      // USBSerial.print(F("Place Your Card"));
+  checkForIncomingMessage();
+
+  readCard();
+}
+
+void checkForIncomingMessage() {
+  while(USBSerial && USBSerial.available()){
+    if(!newReadStarted){
+      newReadStarted = true;
+      tone(PIEZZO_PIN, 523, 250);
+      lcd.clear();
       lcd.setCursor(0,0);
-      lcd.print("Place your Card");
-      startRead = true;
+      lineIndex = 0;
     }
+    int byte = USBSerial.read();
+
+    if(lineIndex == 16){
+      // set cursor to new Line
+      lcd.setCursor(0,1);
+    }
+
+    lcd.write(byte);
+    lineIndex++;
+
     USBSerial.flush();
   }
 
-  // if(startRead){
-    readCard();
-  // }
+  newReadStarted = false;
 }
 
 void readCard() {
@@ -86,48 +95,23 @@ void readCard() {
     if (piccType != MFRC522::PICC_TYPE_MIFARE_MINI &&  
       piccType != MFRC522::PICC_TYPE_MIFARE_1K &&
       piccType != MFRC522::PICC_TYPE_MIFARE_4K) {
-      USBSerial.println(F("Your tag is not of type MIFARE Classic."));
       return;
     }
-  
-    if (rfid.uid.uidByte[0] != nuidPICC[0] || 
-      rfid.uid.uidByte[1] != nuidPICC[1] || 
-      rfid.uid.uidByte[2] != nuidPICC[2] || 
-      rfid.uid.uidByte[3] != nuidPICC[3] ) {
-  
-      tone(PIEZZO_PIN, 523 , 250);
-  
-      // Store NUID into nuidPICC array
-      for (byte i = 0; i < 4; i++) {
-        nuidPICC[i] = rfid.uid.uidByte[i];
-      }
-      
-      lcd.clear();
-      lcd.setCursor(0,0);
-      for(byte i = 0; i < rfid.uid.size; i++){
-        lcd.setCursor(i,0);
-        lcd.print(rfid.uid.uidByte[i], HEX);
-      }
-      // printHex(rfid.uid.uidByte, rfid.uid.size);
-      USBSerial.println(F("READ"));
-    } else{
-      USBSerial.println(F("Card read previously."));
-      
-      tone(PIEZZO_PIN, 261 , 500);
-    }
-  
+
+    // card is present and ready to be readed
+    tone(PIEZZO_PIN, 523, 250);
+
+    // send the readed serial number to the application
+    printHex(rfid.uid.uidByte, rfid.uid.size);
+
     // Halt PICC
     rfid.PICC_HaltA();
   
     // Stop encryption on PCD
     rfid.PCD_StopCrypto1();
 
-    // be ready for next Card
-    startRead = false;
-
     USBSerial.flush();
 }
-
 
 /**
  * Helper routine to dump a byte array as hex values to USBSerial. 
@@ -136,15 +120,5 @@ void printHex(byte *buffer, byte bufferSize) {
   for (byte i = 0; i < bufferSize; i++) {
     USBSerial.print(buffer[i] < 0x10 ? " 0" : " ");
     USBSerial.print(buffer[i], HEX);
-  }
-}
-
-/**
- * Helper routine to dump a byte array as dec values to USBSerial.
- */
-void printDec(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    USBSerial.print(buffer[i] < 0x10 ? " 0" : " ");
-    USBSerial.print(buffer[i], DEC);
   }
 }
