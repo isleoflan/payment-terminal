@@ -3,24 +3,30 @@
 #include <WebUSB.h>
 #include <LiquidCrystal.h>
 
-// definitions for RFID
-#define SS_PIN 10
-#define RST_PIN 9
-
-// definitions for piezzo
-#define PIEZZO_PIN 6
-
 // USB Serial Definition
 #define USBSerial WebUSBSerial
 
+// - - - - - - - - - - - - - - - - - - -
+// definitions for piezzo
+#define PIEZZO_PIN 2
+
+// - - - - - - - - - - - - - - - - - - -
+// definitions for RFID
+#define SS_PIN 10
+#define RST_PIN 8
+
+// - - - - - - - - - - - - - - - - - - -
 // LCD definitions
-#define RS A1
-#define EN A0
+#define RS A3
+#define EN A2
+
 // data pin definitions
-#define d4 5
+#define d4 3
 #define d5 4
-#define d6 3
-#define d7 2
+#define d6 5
+#define d7 6
+
+// - - - - - - - - - - - - - - - - - - -
 
 WebUSB WebUSBSerial(1 /* https:// */, "clerk.isleoflan.ch");
 MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
@@ -59,7 +65,7 @@ void checkForIncomingMessage() {
   while(USBSerial && USBSerial.available()){
     if(!newReadStarted){
       newReadStarted = true;
-      tone(PIEZZO_PIN, 523, 250);
+      // tone(PIEZZO_PIN, 523, 250);
       lcd.clear();
       lcd.setCursor(0,0);
       lineIndex = 0;
